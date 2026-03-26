@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Plus, Trash2, LogOut, ShieldCheck, Activity, Cpu,
   Database, CheckCircle, Box, ListChecks, ArrowRight,
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import ParticleBackground from './ParticleBackground';
 
-// --- 子组件：退出确认弹窗 ---
+// --- 子组件：退出确认弹窗 (原样保留) ---
 const LogoutModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
   return (
@@ -32,18 +32,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [riskReport, setRiskReport] = useState("等待系统扫描数据...");
 
-  // --- 新增：登录表单状态 ---
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-
-  // --- 新增：自动登录检查 ---
-  useEffect(() => {
-    const token = localStorage.getItem('dpfs_token');
-    if (token) {
-      setIsLoggedIn(true);
-    }
-  }, []);
-
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // --- 新增：视图控制与历史数据存储 ---
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' 或 'history'
   const [historyItems, setHistoryItems] = useState([
     { id: 1, name: '有机红富士', mode: '标准模式', qty: '1200', time: '2026-03-25 14:20', status: 'SAFE' },
     { id: 2, name: '大红袍茶叶', mode: '深度扫描', qty: '45', time: '2026-03-25 15:10', status: 'SAFE' }
@@ -66,41 +56,12 @@ export default function App() {
     setFormData({ ...formData, [type]: updated });
   };
 
-  // --- 修改：对接真实后端接口 ---
-  const handleLogin = async () => {
-    if (!loginForm.username || !loginForm.password) {
-      alert("请完整输入账号和访问密钥");
-      return;
-    }
-
+  const handleLogin = () => {
     setIsLoading(true);
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: loginForm.username,
-          password: loginForm.password
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.code === 0) {
-        // 登录成功，存储 user_token (根据你提供的结构)
-        localStorage.setItem('dpfs_token', result.user_token);
-        setIsLoggedIn(true);
-      } else {
-        alert(result.message || "身份验证失败，请检查账号密码");
-      }
-    } catch (error) {
-      console.error("Login Error:", error);
-      alert("无法连接到服务器，请检查网络或后端地址：http://192.168.34.12:20510");
-    } finally {
+    setTimeout(() => {
+      setIsLoggedIn(true);
       setIsLoading(false);
-    }
+    }, 1200);
   };
 
   const runEvaluation = () => {
@@ -110,6 +71,7 @@ export default function App() {
       const now = new Date();
       setRiskReport(`[DPFS 智能评估报告]\n生成时间: ${now.toLocaleString()}\n---------------------------\n商品: ${formData.productName || '未命名'}\n风险等级: 低风险 (SAFE)\n结论: 该农产品符合安全准入标准。`);
 
+      // 自动同步到历史记录
       const newHistory = {
         id: Date.now(),
         name: formData.productName,
@@ -123,6 +85,7 @@ export default function App() {
     }, 2000);
   };
 
+  // 1. 【原样保留】全屏粒子登录页面
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-white relative overflow-hidden">
@@ -159,23 +122,11 @@ export default function App() {
               <div className="space-y-6">
                 <div className="relative group">
                   <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                  <input
-                    type="text"
-                    value={loginForm.username}
-                    onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                    placeholder="输入管理账号"
-                    className="w-full pl-14 pr-6 py-5 rounded-2xl bg-slate-900/50 border border-slate-800 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-lg"
-                  />
+                  <input type="text" placeholder="输入管理账号" className="w-full pl-14 pr-6 py-5 rounded-2xl bg-slate-900/50 border border-slate-800 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-lg" />
                 </div>
                 <div className="relative group">
                   <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                  <input
-                    type="password"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    placeholder="输入访问密钥 (密码)"
-                    className="w-full pl-14 pr-6 py-5 rounded-2xl bg-slate-900/50 border border-slate-800 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-lg text-white"
-                  />
+                  <input type="text" placeholder="输入访问密钥 (密码)" className="w-full pl-14 pr-6 py-5 rounded-2xl bg-slate-900/50 border border-slate-800 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-lg text-slate-400" />
                 </div>
                 <button onClick={handleLogin} className="group w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-lg hover:bg-emerald-500 transition-all transform hover:-translate-y-1 shadow-2xl shadow-emerald-950 flex items-center justify-center gap-3">
                   {isLoading ? "系统验证中..." : "验证身份进入系统"}
@@ -192,18 +143,12 @@ export default function App() {
     );
   }
 
+  // 2. 【核心修改点】主工作台
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden text-slate-900 relative">
-      <LogoutModal
-        isOpen={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
-        onConfirm={() => {
-          localStorage.removeItem('dpfs_token');
-          setIsLoggedIn(false);
-          setShowLogoutModal(false);
-        }}
-      />
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={() => setIsLoggedIn(false)} />
 
+      {/* 侧边导轨：增加切换状态逻辑 */}
       <aside className="w-24 flex flex-col items-center py-10 bg-white border-r border-slate-100 z-50">
         <div className="p-4 bg-slate-950 rounded-[2rem] text-emerald-500 mb-16 shadow-xl shadow-slate-200">
           <Zap size={28} fill="currentColor" />
@@ -227,10 +172,12 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex overflow-hidden">
+        {/* 条件渲染：左侧内容根据 activeTab 切换 */}
         <div className={`h-full overflow-y-auto p-12 custom-scrollbar transition-all duration-500 ${activeTab === 'history' ? 'flex-1 bg-slate-50/50' : 'flex-[1.3]'}`}>
           <div className={`${activeTab === 'history' ? 'max-w-6xl' : 'max-w-3xl'} mx-auto`}>
 
             {activeTab === 'dashboard' ? (
+              // --- 原始录入界面 (原封不动) ---
               <>
                 <header className="mb-12">
                   <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">Security Collection</span>
@@ -280,6 +227,7 @@ export default function App() {
                 </div>
               </>
             ) : (
+              // --- 新增：美化的历史查询界面 ---
               <div className="animate-in fade-in slide-in-from-left-4 duration-700">
                 <header className="mb-12 flex justify-between items-end">
                   <div>
@@ -343,6 +291,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* 右侧：分析区 (仅在 activeTab 为 dashboard 时显示) */}
         {activeTab === 'dashboard' && (
           <div className="flex-1 h-full bg-slate-900 p-12 flex flex-col relative text-white animate-in slide-in-from-right-full duration-500">
             <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#10b981 0.8px, transparent 0.8px)', backgroundSize: '32px 32px' }}></div>
