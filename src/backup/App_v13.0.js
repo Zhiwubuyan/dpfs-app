@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, LogOut, ShieldCheck, Activity, Cpu,
-  CheckCircle, Box, ListChecks, ArrowRight,
-  User, Lock, LayoutDashboard, Zap, Search, ChevronRight,
+  Database, CheckCircle, Box, ListChecks, ArrowRight,
+  User, Lock, LayoutDashboard, Zap, Search, Clock, ChevronRight,
   RefreshCw, ChevronLeft, Check
 } from 'lucide-react';
 import ParticleBackground from './ParticleBackground';
@@ -70,10 +70,6 @@ export default function App() {
   const [systemProBasicOpen, setSystemProBasicOpen] = useState({});
   const [systemProBasicLoading, setSystemProBasicLoading] = useState({});
   const [systemProBasicCache, setSystemProBasicCache] = useState({});
-  const [riskProData, setRiskProData] = useState([]);
-  const [riskProTotal, setRiskProTotal] = useState(0);
-  const [currentRiskProPage, setCurrentRiskProPage] = useState(0);
-  const [riskProOpen, setRiskProOpen] = useState({});
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
 
   useEffect(() => {
@@ -82,6 +78,10 @@ export default function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [historyItems, setHistoryItems] = useState([
+    { id: 1, name: '有机红富士', mode: '标准模式', qty: '1200', time: '2026-03-25 14:20', status: 'SAFE' },
+    { id: 2, name: '大红袍茶叶', mode: '深度扫描', qty: '45', time: '2026-03-25 15:10', status: 'SAFE' }
+  ]);
 
   const [formData, setFormData] = useState({
     modeName: '', productName: '', quantity: '',
@@ -501,7 +501,7 @@ export default function App() {
       if (result && (result.code === 200 || Number(result.code) === 200)) {
         setTraceResults({
           traceResult: result.trace_result,
-          aiRiskReport: result.ai_risk_report ? formatRiskInfo(result.ai_risk_report) : "未返回AI风险评估"
+          aiRiskReport: normalizeApiText(result.ai_risk_report, "未返回AI风险评估")
         });
         showToast(result.message || "溯源成功");
       } else {
@@ -554,55 +554,6 @@ export default function App() {
       }
     } catch (e) {
       showToast(`交易创建失败：${e?.message || ''}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const riskProKeyOf = (item) => `${item?.schema || ''}\u001f${item?.product_name || ''}`;
-
-  const parseRiskDescription = (value) => {
-    if (value === null || value === undefined) return null;
-    if (typeof value !== 'string') return value;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      try {
-        return JSON.parse(trimmed);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  };
-
-  const formatRiskLevel = (value) => {
-    const map = { l: '低风险', m: '中风险', h: '高风险' };
-    const key = String(value ?? '').trim().toLowerCase();
-    return map[key] || (String(value ?? '').trim() || '无');
-  };
-
-  const handleFetchRiskProData = async (beginIndex = 0) => {
-    const token = localStorage.getItem('dpfs_token');
-    if (!token) return alert("会话已过期，请重新登录");
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/list_risk_pro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_token: parseInt(token), begin: beginIndex, limit: 20 })
-      });
-      const result = await res.json();
-      if (result && (result.code === 200 || Number(result.code) === 200)) {
-        setRiskProTotal(Number(result.total) || 0);
-        setRiskProData(result.pro_list || []);
-        setCurrentRiskProPage(beginIndex);
-        setRiskProOpen({});
-      } else {
-        alert(result?.message || "查询失败");
-      }
-    } catch (e) {
-      alert(e?.message || "查询失败");
     } finally {
       setIsLoading(false);
     }
@@ -926,14 +877,14 @@ export default function App() {
           <button onClick={() => setActiveTab('trace')} className={`p-4 rounded-2xl transition-all ${activeTab === 'trace' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Search size={26} /></button>
           <button onClick={() => setActiveTab('make_trade')} className={`p-4 rounded-2xl transition-all ${activeTab === 'make_trade' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Plus size={26} /></button>
           <button onClick={() => setActiveTab('activity')} className={`p-4 rounded-2xl transition-all ${activeTab === 'activity' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Activity size={26} /></button>
-          <button onClick={() => setActiveTab('risk_query')} className={`p-4 rounded-2xl transition-all ${activeTab === 'risk_query' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><ShieldCheck size={26} /></button>
+          <button onClick={() => setActiveTab('history')} className={`p-4 rounded-2xl transition-all ${activeTab === 'history' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Database size={26} /></button>
         </div>
         <button onClick={() => setShowLogoutModal(true)} className="p-4 text-slate-300 hover:text-red-500 transition-all"><LogOut size={28} /></button>
       </aside>
 
       <main className="flex-1 flex overflow-hidden">
-        <div className={`h-full overflow-y-auto p-12 custom-scrollbar transition-all duration-500 ${(activeTab === 'activity' || activeTab === 'make_trade' || activeTab === 'risk_query') ? 'flex-1 bg-slate-50/50' : (activeTab === 'trace' ? 'flex-[0.85]' : 'flex-[1.3]')}`}>
-          <div className={`${(activeTab === 'activity' || activeTab === 'make_trade' || activeTab === 'risk_query') ? 'max-w-6xl' : 'max-w-3xl'} mx-auto`}>
+        <div className={`h-full overflow-y-auto p-12 custom-scrollbar transition-all duration-500 ${(activeTab === 'history' || activeTab === 'activity' || activeTab === 'make_trade') ? 'flex-1 bg-slate-50/50' : (activeTab === 'trace' ? 'flex-[0.85]' : 'flex-[1.3]')}`}>
+          <div className={`${(activeTab === 'history' || activeTab === 'activity' || activeTab === 'make_trade') ? 'max-w-6xl' : 'max-w-3xl'} mx-auto`}>
 
             {activeTab === 'dashboard' && (
               <>
@@ -1134,82 +1085,6 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === 'risk_query' && (
-              <div className="animate-in fade-in slide-in-from-left-4 duration-700">
-                <header className="mb-12 flex justify-between items-center">
-                  <div>
-                    <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">High Risk Products</span>
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">查询高风险商品信息</h2>
-                  </div>
-                  <button onClick={() => handleFetchRiskProData(0)} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-500 shadow-xl shadow-emerald-950/10 transition-all">
-                    <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} /> 查询高风险商品
-                  </button>
-                </header>
-
-                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden mb-8">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
-                      <tr>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">所在组</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">产品名称</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">安全风险</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">健康风险</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {riskProData.map((item, idx) => {
-                        const key = riskProKeyOf(item);
-                        const parsed = parseRiskDescription(item?.risk_description);
-                        const isOpen = riskProOpen[key] === true;
-                        return (
-                          <React.Fragment key={idx}>
-                            <tr className="hover:bg-slate-50/80 transition-colors group">
-                              <td className="px-8 py-6 font-medium text-slate-600">{item.schema}</td>
-                              <td className="px-8 py-6 font-bold text-slate-800">{item.product_name}</td>
-                              <td className="px-8 py-6 font-black text-slate-700">{formatRiskLevel(parsed?.risk)}</td>
-                              <td className="px-8 py-6 font-black text-slate-700">{formatRiskLevel(parsed?.health)}</td>
-                              <td className="px-8 py-6 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => setRiskProOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
-                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-100 text-slate-600 font-black text-xs hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50/40 transition-all"
-                                >
-                                  风险详情
-                                  <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                                </button>
-                              </td>
-                            </tr>
-                            {isOpen && (
-                              <tr className="bg-slate-50/40">
-                                <td colSpan={5} className="px-8 py-6">
-                                  <div className="bg-white rounded-3xl border border-slate-100 p-8">
-                                    <div className="text-xs font-mono font-black tracking-[0.35em] uppercase text-emerald-600/80 mb-4">RISK DESCRIPTION</div>
-                                    <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                      {formatRiskInfo(item?.risk_description)}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {riskProData.length === 0 && !isLoading && <div className="py-20 text-center text-slate-300 italic font-medium">点击上方按钮查询高风险商品</div>}
-                </div>
-
-                {riskProTotal > 0 && (
-                  <div className="flex justify-center items-center gap-6">
-                    <button disabled={currentRiskProPage === 0 || isLoading} onClick={() => handleFetchRiskProData(currentRiskProPage - 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronLeft size={20} /></button>
-                    <div className="text-sm font-bold text-slate-500">第 {Math.floor(currentRiskProPage / 20) + 1} / {Math.ceil(riskProTotal / 20)} 页 <span className="ml-3 text-slate-300 font-normal">(总计 {riskProTotal} 条)</span></div>
-                    <button disabled={currentRiskProPage + 20 >= riskProTotal || isLoading} onClick={() => handleFetchRiskProData(currentRiskProPage + 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronRight size={20} /></button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === 'activity' && (
               <div className="animate-in fade-in slide-in-from-left-4 duration-700">
                 <header className="mb-12 flex justify-between items-center">
@@ -1275,6 +1150,43 @@ export default function App() {
                     <button disabled={currentSystemPage + 20 >= systemTotal || isLoading} onClick={() => handleFetchSystemData(currentSystemPage + 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronRight size={20} /></button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'history' && (
+              <div className="animate-in fade-in slide-in-from-left-4 duration-700">
+                <header className="mb-12 flex justify-between items-end">
+                  <div>
+                    <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">Distributed Ledger</span>
+                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">历史评估存证账本</h2>
+                  </div>
+                </header>
+                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                      <tr>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">存证时间</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">商品全称</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">评估模式</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">批次数量</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">状态</th>
+                        <th className="px-8 py-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {historyItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="px-8 py-6"><div className="flex items-center gap-2 text-slate-500 font-mono text-xs"><Clock size={14} className="text-emerald-500" /> {item.time}</div></td>
+                          <td className="px-8 py-6 font-bold text-slate-700">{item.name}</td>
+                          <td className="px-8 py-6"><span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 uppercase">{item.mode}</span></td>
+                          <td className="px-8 py-6 font-mono text-slate-600 font-bold">{item.qty} units</td>
+                          <td className="px-8 py-6"><div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] tracking-widest"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>{item.status}</div></td>
+                          <td className="px-8 py-6 text-right"><button className="p-2 text-slate-300 hover:text-emerald-500 transition-colors"><ChevronRight size={20} /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

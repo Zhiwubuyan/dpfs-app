@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, LogOut, ShieldCheck, Activity, Cpu,
-  CheckCircle, Box, ListChecks, ArrowRight,
-  User, Lock, LayoutDashboard, Zap, Search, ChevronRight,
+  Database, CheckCircle, Box, ListChecks, ArrowRight,
+  User, Lock, LayoutDashboard, Zap, Search, Clock, ChevronRight,
   RefreshCw, ChevronLeft, Check
 } from 'lucide-react';
 import ParticleBackground from './ParticleBackground';
@@ -48,32 +48,10 @@ export default function App() {
     aiRiskReport: "等待发起溯源请求..."
   });
   const [traceCollapsed, setTraceCollapsed] = useState({});
-  const [tradeForm, setTradeForm] = useState({
-    trade_schema: '',
-    trade_product_name: '',
-    trade_product_start_id: '',
-    trade_product_number: '',
-    buyer: '',
-    buyer_addr: '',
-    buyer_phone: '',
-    seller: '',
-    seller_addr: '',
-    seller_phone: '',
-    logistics_info: '',
-    other_info: '',
-    trade_price: ''
-  });
 
   const [systemData, setSystemData] = useState([]);
   const [systemTotal, setSystemTotal] = useState(0);
   const [currentSystemPage, setCurrentSystemPage] = useState(0);
-  const [systemProBasicOpen, setSystemProBasicOpen] = useState({});
-  const [systemProBasicLoading, setSystemProBasicLoading] = useState({});
-  const [systemProBasicCache, setSystemProBasicCache] = useState({});
-  const [riskProData, setRiskProData] = useState([]);
-  const [riskProTotal, setRiskProTotal] = useState(0);
-  const [currentRiskProPage, setCurrentRiskProPage] = useState(0);
-  const [riskProOpen, setRiskProOpen] = useState({});
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
 
   useEffect(() => {
@@ -82,6 +60,10 @@ export default function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [historyItems, setHistoryItems] = useState([
+    { id: 1, name: '有机红富士', mode: '标准模式', qty: '1200', time: '2026-03-25 14:20', status: 'SAFE' },
+    { id: 2, name: '大红袍茶叶', mode: '深度扫描', qty: '45', time: '2026-03-25 15:10', status: 'SAFE' }
+  ]);
 
   const [formData, setFormData] = useState({
     modeName: '', productName: '', quantity: '',
@@ -190,7 +172,8 @@ export default function App() {
 
         // 安全地更新报告内容
         if (genAiReport) {
-          setRiskReport(formatRiskInfo(result?.risk_info));
+          // 使用可选链 ?. 或默认值，防止 result.risk_info 不存在时报错
+          setRiskReport(result.risk_info || "服务器未返回具体评估内容。");
         }
       } else {
         showToast(`录入失败: ${result?.message || '业务返回码错误'}`);
@@ -219,98 +202,6 @@ export default function App() {
     } catch (e) {
       return String(value);
     }
-  };
-
-  const formatRiskInfo = (riskInfo) => {
-    const levelMap = {
-      l: '低风险',
-      m: '中风险',
-      h: '高风险'
-    };
-    const labelMap = {
-      risk: '安全风险',
-      health: '健康风险',
-      comp_ana: '成分分析',
-      pot_risk: '潜在风险',
-      suggest: '建议'
-    };
-    const order = ['risk', 'health', 'comp_ana', 'pot_risk', 'suggest'];
-
-    const indentBlock = (text, prefix) => {
-      const p = prefix || '  ';
-      const s = String(text ?? '').replace(/\r\n/g, '\n');
-      if (!s.trim()) return '';
-      return s
-        .split('\n')
-        .map((line) => (line.trim() ? `${p}${line}` : ''))
-        .join('\n');
-    };
-
-    const tryParseJsonFromText = (text) => {
-      const raw = String(text ?? '').trim();
-      if (!raw) return null;
-      const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-      const candidate = (fenced && fenced[1] ? fenced[1] : raw).trim();
-      if (!candidate) return null;
-      if ((candidate.startsWith('{') && candidate.endsWith('}')) || (candidate.startsWith('[') && candidate.endsWith(']'))) {
-        try {
-          return JSON.parse(candidate);
-        } catch (e) {
-          return null;
-        }
-      }
-      return null;
-    };
-
-    let obj = null;
-    if (riskInfo && typeof riskInfo === 'object') obj = riskInfo;
-    if (!obj && typeof riskInfo === 'string') obj = tryParseJsonFromText(riskInfo);
-    if (!obj) return normalizeApiText(riskInfo, "服务器未返回具体评估内容。");
-
-    const lines = [];
-    const pushSection = (sectionLines) => {
-      if (!Array.isArray(sectionLines) || sectionLines.length === 0) return;
-      if (lines.length > 0) lines.push('');
-      lines.push(...sectionLines);
-    };
-    const emitKeyValue = (k, v) => {
-      const label = labelMap[k] || k;
-      if (k === 'risk' || k === 'health') {
-        const level = String(v ?? '').trim().toLowerCase();
-        const text = levelMap[level] || String(v ?? '').trim();
-        pushSection([`${label}: ${text || '无'}`]);
-        return;
-      }
-      if (typeof v === 'string') {
-        const content = v.trim();
-        if (!content) {
-          pushSection([`${label}: 无`]);
-          return;
-        }
-        pushSection([`${label}:`, indentBlock(content)]);
-        return;
-      }
-      if (v === null || v === undefined) {
-        pushSection([`${label}: 无`]);
-        return;
-      }
-      try {
-        pushSection([`${label}:`, indentBlock(JSON.stringify(v, null, 2))]);
-      } catch (e) {
-        pushSection([`${label}: ${String(v)}`]);
-      }
-    };
-
-    order.forEach((k) => {
-      if (Object.prototype.hasOwnProperty.call(obj, k)) emitKeyValue(k, obj[k]);
-    });
-    Object.keys(obj).forEach((k) => {
-      if (k === 'code' || k === 'message') return;
-      if (order.includes(k)) return;
-      emitKeyValue(k, obj[k]);
-    });
-
-    return lines.join('\n');
   };
 
   const parseTraceResult = (value) => {
@@ -501,7 +392,7 @@ export default function App() {
       if (result && (result.code === 200 || Number(result.code) === 200)) {
         setTraceResults({
           traceResult: result.trace_result,
-          aiRiskReport: result.ai_risk_report ? formatRiskInfo(result.ai_risk_report) : "未返回AI风险评估"
+          aiRiskReport: normalizeApiText(result.ai_risk_report, "未返回AI风险评估")
         });
         showToast(result.message || "溯源成功");
       } else {
@@ -509,100 +400,6 @@ export default function App() {
       }
     } catch (error) {
       showToast(`溯源失败: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMakeTrade = async () => {
-    const token = localStorage.getItem('dpfs_token');
-    if (!token) return alert("请先登录");
-
-    setIsLoading(true);
-    const toNumberOrZero = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const payload = {
-      user_token: parseInt(token),
-      trade_schema: tradeForm.trade_schema,
-      trade_product_name: tradeForm.trade_product_name,
-      trade_product_start_id: toNumberOrZero(tradeForm.trade_product_start_id),
-      trade_product_number: toNumberOrZero(tradeForm.trade_product_number),
-      buyer: tradeForm.buyer,
-      buyer_addr: tradeForm.buyer_addr,
-      buyer_phone: tradeForm.buyer_phone,
-      seller: tradeForm.seller,
-      seller_addr: tradeForm.seller_addr,
-      seller_phone: tradeForm.seller_phone,
-      logistics_info: tradeForm.logistics_info,
-      other_info: tradeForm.other_info,
-      trade_price: tradeForm.trade_price
-    };
-
-    try {
-      const response = await fetch('/api/make_trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (result && (result.code === 200 || Number(result.code) === 200)) {
-        showToast("交易创建成功");
-      } else {
-        showToast(`交易创建失败：${result?.message || ''}`);
-      }
-    } catch (e) {
-      showToast(`交易创建失败：${e?.message || ''}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const riskProKeyOf = (item) => `${item?.schema || ''}\u001f${item?.product_name || ''}`;
-
-  const parseRiskDescription = (value) => {
-    if (value === null || value === undefined) return null;
-    if (typeof value !== 'string') return value;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      try {
-        return JSON.parse(trimmed);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  };
-
-  const formatRiskLevel = (value) => {
-    const map = { l: '低风险', m: '中风险', h: '高风险' };
-    const key = String(value ?? '').trim().toLowerCase();
-    return map[key] || (String(value ?? '').trim() || '无');
-  };
-
-  const handleFetchRiskProData = async (beginIndex = 0) => {
-    const token = localStorage.getItem('dpfs_token');
-    if (!token) return alert("会话已过期，请重新登录");
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/list_risk_pro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_token: parseInt(token), begin: beginIndex, limit: 20 })
-      });
-      const result = await res.json();
-      if (result && (result.code === 200 || Number(result.code) === 200)) {
-        setRiskProTotal(Number(result.total) || 0);
-        setRiskProData(result.pro_list || []);
-        setCurrentRiskProPage(beginIndex);
-        setRiskProOpen({});
-      } else {
-        alert(result?.message || "查询失败");
-      }
-    } catch (e) {
-      alert(e?.message || "查询失败");
     } finally {
       setIsLoading(false);
     }
@@ -630,194 +427,12 @@ export default function App() {
         if (fetchResult.code === 200) {
           setSystemData(fetchResult.trace_pros || []);
           setCurrentSystemPage(beginIndex);
-          setSystemProBasicOpen({});
         }
       }
     } catch (error) {
       console.error(error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const systemProKeyOf = (item) => `${item?.group_name || ''}\u001f${item?.product_name || ''}\u001f${item?.trace_code_prefix || ''}`;
-
-  const renderSystemProExtraInfo = (value) => {
-    const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
-    const toPrimitiveText = (v) => {
-      if (v === null) return 'null';
-      if (v === undefined) return 'undefined';
-      if (typeof v === 'string') return v;
-      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-      try {
-        return JSON.stringify(v);
-      } catch (e) {
-        return String(v);
-      }
-    };
-    const isKvArray = (arr) =>
-      Array.isArray(arr) &&
-      arr.length > 0 &&
-      arr.every((it) => isObject(it) && Object.keys(it).every((k) => k === 'key' || k === 'value') && 'key' in it);
-
-    const Line = ({ indent, left, lineKey }) => (
-      <div key={lineKey} className="flex items-start gap-6" style={{ paddingLeft: indent * 18 }}>
-        <div className="min-w-0 break-words">{left}</div>
-      </div>
-    );
-
-    const walk = (node, path, indent, label) => {
-      const keyOf = (p) => p.map((x) => String(x)).join('\u001f');
-      const hasLabel = label !== null && label !== undefined && String(label).length > 0;
-
-      if (Array.isArray(node)) {
-        const key = keyOf(path);
-        const header = hasLabel ? (
-          <Line
-            indent={indent}
-            left={<span className="font-black text-slate-800">{label}</span>}
-            lineKey={`h:${key}`}
-          />
-        ) : null;
-
-        if (node.length === 0) {
-          const empty = (
-            <Line
-              indent={indent}
-              left={<span className="text-slate-400">{hasLabel ? `${label}: []` : '[]'}</span>}
-              lineKey={`e:${key}`}
-            />
-          );
-          return [empty];
-        }
-
-        if (hasLabel && isKvArray(node)) {
-          const children = node.map((kv, i) => (
-            <Line
-              indent={indent + 1}
-              left={<span><span className="font-black">{toPrimitiveText(kv.key)}</span>: {toPrimitiveText(kv.value)}</span>}
-              lineKey={`kv:${key}\u001f${i}`}
-            />
-          ));
-          return header ? [header, ...children] : children;
-        }
-
-        const baseIndent = hasLabel ? indent + 1 : indent;
-        const children = node.flatMap((item, idx) => {
-          const itemLabel = `- [${idx}]`;
-          const itemPath = [...path, idx];
-          if (Array.isArray(item) || isObject(item)) return walk(item, itemPath, baseIndent, itemLabel);
-          return [
-            <Line
-              indent={baseIndent}
-              left={<span>{itemLabel}: {toPrimitiveText(item)}</span>}
-              lineKey={`p:${keyOf(itemPath)}`}
-            />
-          ];
-        });
-
-        return header ? [header, ...children] : children;
-      }
-
-      if (isObject(node)) {
-        const key = keyOf(path);
-        const header = hasLabel ? (
-          <Line
-            indent={indent}
-            left={<span className="font-black text-slate-800">{label}</span>}
-            lineKey={`o:${key}`}
-          />
-        ) : null;
-
-        const entries = Object.entries(node);
-        if (entries.length === 0) {
-          const empty = (
-            <Line
-              indent={indent}
-              left={<span className="text-slate-400">{hasLabel ? `${label}: {}` : '{}'}</span>}
-              lineKey={`e:${key}`}
-            />
-          );
-          return [empty];
-        }
-
-        const baseIndent = hasLabel ? indent + 1 : indent;
-        const children = entries.flatMap(([k, v]) => {
-          const nextPath = [...path, k];
-          if (Array.isArray(v) || isObject(v)) return walk(v, nextPath, baseIndent, k);
-          return [
-            <Line
-              indent={baseIndent}
-              left={<span><span className="font-black">{k}</span>: {toPrimitiveText(v)}</span>}
-              lineKey={`kv:${keyOf(nextPath)}`}
-            />
-          ];
-        });
-
-        return header ? [header, ...children] : children;
-      }
-
-      const key = keyOf(path);
-      return [
-        <Line
-          indent={indent}
-          left={hasLabel ? <span><span className="font-black">{label}</span>: {toPrimitiveText(node)}</span> : <span>{toPrimitiveText(node)}</span>}
-          lineKey={`v:${key}`}
-        />
-      ];
-    };
-
-    if (value === null || value === undefined) return <div className="text-slate-400 font-medium">暂无信息</div>;
-    if (!isObject(value)) return <div className="space-y-2">{walk(value, ['root'], 0, null)}</div>;
-    const entries = Object.entries(value);
-    if (entries.length === 0) return <div className="text-slate-400 font-medium">暂无信息</div>;
-    return <div className="space-y-2">{walk(value, ['root'], 0, null)}</div>;
-  };
-
-  const handleToggleSystemProBasic = async (item) => {
-    const key = systemProKeyOf(item);
-    const isOpen = systemProBasicOpen[key] === true;
-    if (isOpen) {
-      setSystemProBasicOpen((prev) => ({ ...prev, [key]: false }));
-      return;
-    }
-
-    setSystemProBasicOpen((prev) => ({ ...prev, [key]: true }));
-    if (systemProBasicCache[key] || systemProBasicLoading[key]) return;
-
-    const token = localStorage.getItem('dpfs_token');
-    if (!token) return alert("会话已过期，请重新登录");
-
-    setSystemProBasicLoading((prev) => ({ ...prev, [key]: true }));
-    try {
-      const payload = {
-        user_token: parseInt(token),
-        schema: item?.group_name,
-        name: item?.product_name
-      };
-      const response = await fetch('/api/list_pro_basic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-
-      if (result && (result.code === 200 || Number(result.code) === 200)) {
-        const extra = {};
-        Object.entries(result || {}).forEach(([k, v]) => {
-          if (k === 'code' || k === 'message') return;
-          extra[k] = v;
-        });
-        setSystemProBasicCache((prev) => ({ ...prev, [key]: extra }));
-      } else {
-        alert(result?.message || "请求失败");
-        setSystemProBasicOpen((prev) => ({ ...prev, [key]: false }));
-      }
-    } catch (e) {
-      alert(e?.message || "请求失败");
-      setSystemProBasicOpen((prev) => ({ ...prev, [key]: false }));
-    } finally {
-      setSystemProBasicLoading((prev) => ({ ...prev, [key]: false }));
     }
   };
 
@@ -924,16 +539,15 @@ export default function App() {
         <div className="flex-1 flex flex-col gap-10">
           <button onClick={() => setActiveTab('dashboard')} className={`p-4 rounded-2xl transition-all ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><LayoutDashboard size={26} /></button>
           <button onClick={() => setActiveTab('trace')} className={`p-4 rounded-2xl transition-all ${activeTab === 'trace' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Search size={26} /></button>
-          <button onClick={() => setActiveTab('make_trade')} className={`p-4 rounded-2xl transition-all ${activeTab === 'make_trade' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Plus size={26} /></button>
           <button onClick={() => setActiveTab('activity')} className={`p-4 rounded-2xl transition-all ${activeTab === 'activity' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Activity size={26} /></button>
-          <button onClick={() => setActiveTab('risk_query')} className={`p-4 rounded-2xl transition-all ${activeTab === 'risk_query' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><ShieldCheck size={26} /></button>
+          <button onClick={() => setActiveTab('history')} className={`p-4 rounded-2xl transition-all ${activeTab === 'history' ? 'bg-emerald-50 text-emerald-600 shadow-sm' : 'text-slate-300 hover:text-slate-600'}`}><Database size={26} /></button>
         </div>
         <button onClick={() => setShowLogoutModal(true)} className="p-4 text-slate-300 hover:text-red-500 transition-all"><LogOut size={28} /></button>
       </aside>
 
       <main className="flex-1 flex overflow-hidden">
-        <div className={`h-full overflow-y-auto p-12 custom-scrollbar transition-all duration-500 ${(activeTab === 'activity' || activeTab === 'make_trade' || activeTab === 'risk_query') ? 'flex-1 bg-slate-50/50' : (activeTab === 'trace' ? 'flex-[0.85]' : 'flex-[1.3]')}`}>
-          <div className={`${(activeTab === 'activity' || activeTab === 'make_trade' || activeTab === 'risk_query') ? 'max-w-6xl' : 'max-w-3xl'} mx-auto`}>
+        <div className={`h-full overflow-y-auto p-12 custom-scrollbar transition-all duration-500 ${(activeTab === 'history' || activeTab === 'activity') ? 'flex-1 bg-slate-50/50' : (activeTab === 'trace' ? 'flex-[0.85]' : 'flex-[1.3]')}`}>
+          <div className={`${(activeTab === 'history' || activeTab === 'activity') ? 'max-w-6xl' : 'max-w-3xl'} mx-auto`}>
 
             {activeTab === 'dashboard' && (
               <>
@@ -1057,159 +671,6 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === 'make_trade' && (
-              <div className="animate-in fade-in slide-in-from-left-4 duration-700">
-                <header className="mb-12">
-                  <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">Trade Creation</span>
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">创建交易</h2>
-                </header>
-
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-white p-10 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-2 h-8 bg-emerald-500 rounded-full"></div>
-                      <h3 className="font-bold text-lg">交易信息</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {[
-                        { label: '发生交易的溯源组', key: 'trade_schema', ph: '输入溯源组' },
-                        { label: '发生交易的产品名称', key: 'trade_product_name', ph: '输入产品名称' },
-                        { label: '发生交易的产品起始ID', key: 'trade_product_start_id', ph: '输入起始ID' },
-                        { label: '发生交易的产品数量', key: 'trade_product_number', ph: '输入数量' },
-                        { label: '发生金额', key: 'trade_price', ph: '输入金额' },
-                        { label: '物流信息', key: 'logistics_info', ph: '输入物流信息' },
-                        { label: '其它信息', key: 'other_info', ph: '输入其它信息' }
-                      ].map((f) => (
-                        <div key={f.key}>
-                          <label className="block text-[11px] font-bold text-slate-400 uppercase mb-3 ml-1">{f.label}</label>
-                          <input
-                            type={(f.key === 'trade_product_start_id' || f.key === 'trade_product_number') ? 'number' : 'text'}
-                            value={tradeForm[f.key]}
-                            onChange={(e) => setTradeForm({ ...tradeForm, [f.key]: e.target.value })}
-                            className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500/20 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-semibold text-slate-700"
-                            placeholder={f.ph}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-10 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-2 h-8 bg-emerald-500 rounded-full"></div>
-                      <h3 className="font-bold text-lg">买卖双方</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {[
-                        { label: '买方名称', key: 'buyer', ph: '输入买方名称' },
-                        { label: '买方地址', key: 'buyer_addr', ph: '输入买方地址' },
-                        { label: '买方联系方式', key: 'buyer_phone', ph: '输入买方联系方式' },
-                        { label: '卖方名称', key: 'seller', ph: '输入卖方名称' },
-                        { label: '卖方地址', key: 'seller_addr', ph: '输入卖方地址' },
-                        { label: '卖方联系方式', key: 'seller_phone', ph: '输入卖方联系方式' }
-                      ].map((f) => (
-                        <div key={f.key}>
-                          <label className="block text-[11px] font-bold text-slate-400 uppercase mb-3 ml-1">{f.label}</label>
-                          <input
-                            value={tradeForm[f.key]}
-                            onChange={(e) => setTradeForm({ ...tradeForm, [f.key]: e.target.value })}
-                            className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500/20 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-semibold text-slate-700"
-                            placeholder={f.ph}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleMakeTrade}
-                    disabled={isLoading}
-                    className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl hover:bg-emerald-600 transition-all transform hover:-translate-y-1 shadow-xl shadow-slate-200 flex items-center justify-center gap-3 disabled:opacity-50"
-                  >
-                    {isLoading ? <RefreshCw className="animate-spin" size={24} /> : <Plus size={24} />}
-                    提交创建交易
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'risk_query' && (
-              <div className="animate-in fade-in slide-in-from-left-4 duration-700">
-                <header className="mb-12 flex justify-between items-center">
-                  <div>
-                    <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">High Risk Products</span>
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">查询高风险商品信息</h2>
-                  </div>
-                  <button onClick={() => handleFetchRiskProData(0)} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-500 shadow-xl shadow-emerald-950/10 transition-all">
-                    <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} /> 查询高风险商品
-                  </button>
-                </header>
-
-                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden mb-8">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
-                      <tr>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">所在组</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">产品名称</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">安全风险</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">健康风险</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {riskProData.map((item, idx) => {
-                        const key = riskProKeyOf(item);
-                        const parsed = parseRiskDescription(item?.risk_description);
-                        const isOpen = riskProOpen[key] === true;
-                        return (
-                          <React.Fragment key={idx}>
-                            <tr className="hover:bg-slate-50/80 transition-colors group">
-                              <td className="px-8 py-6 font-medium text-slate-600">{item.schema}</td>
-                              <td className="px-8 py-6 font-bold text-slate-800">{item.product_name}</td>
-                              <td className="px-8 py-6 font-black text-slate-700">{formatRiskLevel(parsed?.risk)}</td>
-                              <td className="px-8 py-6 font-black text-slate-700">{formatRiskLevel(parsed?.health)}</td>
-                              <td className="px-8 py-6 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => setRiskProOpen((prev) => ({ ...prev, [key]: !prev[key] }))}
-                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-100 text-slate-600 font-black text-xs hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50/40 transition-all"
-                                >
-                                  风险详情
-                                  <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                                </button>
-                              </td>
-                            </tr>
-                            {isOpen && (
-                              <tr className="bg-slate-50/40">
-                                <td colSpan={5} className="px-8 py-6">
-                                  <div className="bg-white rounded-3xl border border-slate-100 p-8">
-                                    <div className="text-xs font-mono font-black tracking-[0.35em] uppercase text-emerald-600/80 mb-4">RISK DESCRIPTION</div>
-                                    <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                      {formatRiskInfo(item?.risk_description)}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {riskProData.length === 0 && !isLoading && <div className="py-20 text-center text-slate-300 italic font-medium">点击上方按钮查询高风险商品</div>}
-                </div>
-
-                {riskProTotal > 0 && (
-                  <div className="flex justify-center items-center gap-6">
-                    <button disabled={currentRiskProPage === 0 || isLoading} onClick={() => handleFetchRiskProData(currentRiskProPage - 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronLeft size={20} /></button>
-                    <div className="text-sm font-bold text-slate-500">第 {Math.floor(currentRiskProPage / 20) + 1} / {Math.ceil(riskProTotal / 20)} 页 <span className="ml-3 text-slate-300 font-normal">(总计 {riskProTotal} 条)</span></div>
-                    <button disabled={currentRiskProPage + 20 >= riskProTotal || isLoading} onClick={() => handleFetchRiskProData(currentRiskProPage + 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronRight size={20} /></button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === 'activity' && (
               <div className="animate-in fade-in slide-in-from-left-4 duration-700">
                 <header className="mb-12 flex justify-between items-center">
@@ -1228,41 +689,15 @@ export default function App() {
                         <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">所在组</th>
                         <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">产品名称</th>
                         <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">溯源代码前缀</th>
-                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {systemData.map((item, idx) => (
-                        <React.Fragment key={idx}>
-                          <tr className="hover:bg-slate-50/80 transition-colors group">
-                            <td className="px-8 py-6 font-medium text-slate-600">{item.group_name}</td>
-                            <td className="px-8 py-6 font-bold text-slate-800">{item.product_name}</td>
-                            <td className="px-8 py-6 font-mono text-xs text-emerald-600 truncate max-w-[300px]">{item.trace_code_prefix}</td>
-                            <td className="px-8 py-6 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSystemProBasic(item)}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-100 text-slate-600 font-black text-xs hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50/40 transition-all"
-                              >
-                                基本信息
-                                <ChevronRight size={16} className={`transition-transform ${systemProBasicOpen[systemProKeyOf(item)] ? 'rotate-90' : ''}`} />
-                              </button>
-                            </td>
-                          </tr>
-                          {systemProBasicOpen[systemProKeyOf(item)] && (
-                            <tr className="bg-slate-50/40">
-                              <td colSpan={4} className="px-8 py-6">
-                                {systemProBasicLoading[systemProKeyOf(item)] ? (
-                                  <div className="text-slate-400 font-medium">加载中...</div>
-                                ) : (
-                                  <div className="text-slate-600">
-                                    {renderSystemProExtraInfo(systemProBasicCache[systemProKeyOf(item)])}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="px-8 py-6 font-medium text-slate-600">{item.group_name}</td>
+                          <td className="px-8 py-6 font-bold text-slate-800">{item.product_name}</td>
+                          <td className="px-8 py-6 font-mono text-xs text-emerald-600 truncate max-w-[300px]">{item.trace_code_prefix}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -1275,6 +710,43 @@ export default function App() {
                     <button disabled={currentSystemPage + 20 >= systemTotal || isLoading} onClick={() => handleFetchSystemData(currentSystemPage + 20)} className="p-4 bg-white rounded-xl border border-slate-100 disabled:opacity-30 hover:text-emerald-500 transition-all"><ChevronRight size={20} /></button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'history' && (
+              <div className="animate-in fade-in slide-in-from-left-4 duration-700">
+                <header className="mb-12 flex justify-between items-end">
+                  <div>
+                    <span className="text-[10px] font-black tracking-[0.3em] text-emerald-600 uppercase mb-3 block">Distributed Ledger</span>
+                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">历史评估存证账本</h2>
+                  </div>
+                </header>
+                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                      <tr>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">存证时间</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">商品全称</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">评估模式</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">批次数量</th>
+                        <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">状态</th>
+                        <th className="px-8 py-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {historyItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="px-8 py-6"><div className="flex items-center gap-2 text-slate-500 font-mono text-xs"><Clock size={14} className="text-emerald-500" /> {item.time}</div></td>
+                          <td className="px-8 py-6 font-bold text-slate-700">{item.name}</td>
+                          <td className="px-8 py-6"><span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 uppercase">{item.mode}</span></td>
+                          <td className="px-8 py-6 font-mono text-slate-600 font-bold">{item.qty} units</td>
+                          <td className="px-8 py-6"><div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] tracking-widest"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>{item.status}</div></td>
+                          <td className="px-8 py-6 text-right"><button className="p-2 text-slate-300 hover:text-emerald-500 transition-colors"><ChevronRight size={20} /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
